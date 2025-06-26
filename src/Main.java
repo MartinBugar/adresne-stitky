@@ -143,7 +143,8 @@ public class Main {
 
                     // Check if the value contains a variable placeholder
                     if (fullValue.startsWith("./")) {
-                        System.out.println(fullValue);
+                        // Remove "./" prefix before printing
+                        System.out.println(fullValue.substring(2));
                     }
                 }
             } else {
@@ -160,7 +161,8 @@ public class Main {
 
                     // Extract the placeholder
                     String placeholder = line.substring(start, end + 1);
-                    System.out.println(placeholder);
+                    // Remove "./" prefix before printing
+                    System.out.println(placeholder.substring(2));
 
                     // Move to the next position
                     startIndex = end + 1;
