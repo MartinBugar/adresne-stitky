@@ -1,6 +1,7 @@
 import java.io.*;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.ZipEntry;
@@ -26,6 +27,7 @@ public class Main {
             readDocxFile(filePath, input);
 
             System.out.println("XML file with replaced placeholders has been created and exported to src folder.");
+            System.out.println("TXT file with replaced placeholders has been created and exported to src folder.");
         } catch (Exception e) {
             System.err.println("Error processing file: " + e.getMessage());
             e.printStackTrace();
@@ -197,6 +199,8 @@ public class Main {
      */
     private static String replacePlaceholders(String xmlContent, Map<String, String> input) {
         String modifiedXml = xmlContent;
+        Map<String, String> replacedValues = new LinkedHashMap<>();
+
         // Process the XML content to find and replace placeholders
         int pos = 0;
         while (pos < modifiedXml.length()) {
@@ -261,6 +265,9 @@ public class Main {
 
 //                        System.out.println("Replaced placeholder: " + variableName + " with value: " + replacementValue);
                         System.out.println(replacementValue);
+                        // Store the replaced value for later export to TXT file
+                        replacedValues.put(variableName, replacementValue);
+
                         // Update the XML content
                         modifiedXml = modifiedXml.substring(0, contentStart) + content + modifiedXml.substring(contentEnd);
 
@@ -275,7 +282,50 @@ public class Main {
             pos = contentEnd + 6; // Length of "</w:t>"
         }
 
+        // Export the replaced values to a TXT file
+        exportReplacedValuesToTxt(replacedValues);
+
         return modifiedXml;
+    }
+
+    /**
+     * Exports the replaced values to a TXT file in the src folder.
+     *
+     * @param replacedValues Map containing the replaced values
+     */
+    private static void exportReplacedValuesToTxt(Map<String, String> replacedValues) {
+        try {
+            // Get the current working directory
+            String currentDir = System.getProperty("user.dir");
+
+            // Create the src directory if it doesn't exist
+            File srcDir = new File(currentDir, "src");
+            if (!srcDir.exists()) {
+                srcDir.mkdir();
+            }
+
+            // Create the file path
+            String filePath = currentDir + "\\src\\replaced_values.txt";
+
+            // Write the replaced values to the file
+            try (FileWriter writer = new FileWriter(filePath);
+                 BufferedWriter bufferedWriter = new BufferedWriter(writer)) {
+
+                // Write a header
+                bufferedWriter.write("Replaced Placeholders:\n");
+                bufferedWriter.write("=====================\n\n");
+
+                // Write each replaced value
+                for (Map.Entry<String, String> entry : replacedValues.entrySet()) {
+                    bufferedWriter.write(entry.getKey() + ": " + entry.getValue() + "\n");
+                }
+
+                System.out.println("TXT file with replaced values exported to: " + filePath);
+            }
+        } catch (IOException e) {
+            System.err.println("Error exporting TXT file: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
 
