@@ -70,9 +70,6 @@ public class Main {
                     System.out.println("\nModified XML content:");
                     System.out.println(modifiedXml);
 
-                    // Export the modified XML to a file in the src folder
-                    exportXmlToFile(modifiedXml, "src\\exported_document.xml");
-
                     return modifiedXml;
                 }
             }
@@ -200,12 +197,6 @@ public class Main {
      */
     private static String replacePlaceholders(String xmlContent, Map<String, String> input) {
         String modifiedXml = xmlContent;
-
-        System.out.println("\nReplacing placeholders with values from input map:");
-        for (Map.Entry<String, String> entry : input.entrySet()) {
-            System.out.println(entry.getKey() + " -> " + entry.getValue());
-        }
-
         // Process the XML content to find and replace placeholders
         int pos = 0;
         while (pos < modifiedXml.length()) {
@@ -287,21 +278,5 @@ public class Main {
         return modifiedXml;
     }
 
-    /**
-     * Exports the modified XML content to a file.
-     *
-     * @param xmlContent The XML content to export
-     * @param filePath   The path where the XML file will be saved
-     * @throws IOException If there's an error writing to the file
-     */
-    private static void exportXmlToFile(String xmlContent, String filePath) {
-        try (FileWriter writer = new FileWriter(filePath);
-             BufferedWriter bufferedWriter = new BufferedWriter(writer)) {
-            bufferedWriter.write(xmlContent);
-            System.out.println("XML file with replaced placeholders exported to: " + filePath);
-        } catch (IOException e) {
-            System.err.println("Error exporting XML file: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
+
 }
