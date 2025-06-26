@@ -29,12 +29,14 @@ public class Main {
     }
 
     /**
-     * Reads a DOCX file and prints its content to the console.
+     * Reads a DOCX file, replaces placeholders with values from the input map, and prints its content to the console.
      *
      * @param filePath Path to the DOCX file
+     * @param input    Map containing key-value pairs for placeholder replacement
+     * @return
      * @throws IOException If there's an error reading the file
      */
-    private static void readDocxFile(String filePath, Map<String, String> input) throws IOException {
+    private static String readDocxFile(String filePath, Map<String, String> input) throws IOException {
         try (FileInputStream fis = new FileInputStream(new File(filePath));
              ZipInputStream zis = new ZipInputStream(fis)) {
 
@@ -47,7 +49,8 @@ public class Main {
                     // Read the XML content
                     String xmlContent = readInputStream(zis);
 
-                    // Extract text from XML (simple approach)
+                    // Extract text from XML and replace placeholders
+                    String modifiedXml = xmlContent;
                     List<String> textLines = extractTextFromXml(xmlContent);
 
                     // Print all lines
@@ -55,13 +58,17 @@ public class Main {
                         System.out.println(line);
                     }
 
-                    // Find and list variable placeholders
-                    findVariablePlaceholders(textLines);
+                    // Find and replace variable placeholders
+                    modifiedXml = replacePlaceholders(xmlContent, input);
 
-                    break; // We found what we needed
+                    // Print the modified XML content
+                    System.out.println("\nModified XML content:");
+                    System.out.println(modifiedXml);
+                    return modifiedXml;
                 }
             }
         }
+        return filePath;
     }
 
     /**
@@ -173,5 +180,101 @@ public class Main {
                 }
             }
         }
+    }
+
+    /**
+     * Replaces placeholders in the XML content with values from the input map.
+     *
+     * @param xmlContent The original XML content
+     * @param input      Map containing key-value pairs for placeholder replacement
+     * @return The modified XML content with placeholders replaced
+     */
+    private static String replacePlaceholders(String xmlContent, Map<String, String> input) {
+        String modifiedXml = xmlContent;
+
+        System.out.println("\nReplacing placeholders with values from input map:");
+        for (Map.Entry<String, String> entry : input.entrySet()) {
+            System.out.println(entry.getKey() + " -> " + entry.getValue());
+        }
+
+        // Process the XML content to find and replace placeholders
+        int pos = 0;
+        while (pos < modifiedXml.length()) {
+            int startTag = modifiedXml.indexOf("<w:t", pos);
+            if (startTag == -1) break;
+
+            int contentStart = modifiedXml.indexOf(">", startTag);
+            if (contentStart == -1) break;
+            contentStart++; // Move past the '>'
+
+            int contentEnd = modifiedXml.indexOf("</w:t>", contentStart);
+            if (contentEnd == -1) break;
+
+            // Extract the text content
+            String content = modifiedXml.substring(contentStart, contentEnd);
+            String originalContent = content;
+
+            // Look for template placeholders (text that looks like XML entities)
+            if (content.contains("&lt;") && content.contains("&gt;")) {
+                // Extract the template placeholder
+                int placeholderStart = content.indexOf("&lt;");
+                int placeholderEnd = content.lastIndexOf("&gt;") + 4; // Length of "&gt;"
+
+                if (placeholderStart >= 0 && placeholderEnd > placeholderStart) {
+                    String placeholder = content.substring(placeholderStart, placeholderEnd);
+
+                    // Convert XML entities to actual characters for processing
+                    String processedPlaceholder = placeholder.replace("&lt;", "<").replace("&gt;", ">");
+
+                    // Extract the variable name from the placeholder
+                    String variableName = null;
+
+                    // Look for Select="./something" pattern
+                    if (processedPlaceholder.contains("Select=\"./")) {
+                        int selectIndex = processedPlaceholder.indexOf("Select=\"");
+                        int start = selectIndex + 8; // Length of "Select=\"" is 8
+                        int end = processedPlaceholder.indexOf("\"", start);
+
+                        if (end != -1) {
+                            String fullValue = processedPlaceholder.substring(start, end);
+
+                            if (fullValue.startsWith("./")) {
+                                variableName = fullValue.substring(2); // Remove "./" prefix
+                            }
+                        }
+                    } else {
+                        // General case for finding "./" patterns
+                        int start = processedPlaceholder.indexOf("./");
+                        if (start != -1) {
+                            int end = processedPlaceholder.indexOf("/", start + 2);
+                            if (end != -1) {
+                                variableName = processedPlaceholder.substring(start + 2, end); // Remove "./" prefix
+                            }
+                        }
+                    }
+
+                    // If we found a variable name and it exists in the input map, replace it
+                    if (variableName != null && input.containsKey(variableName)) {
+                        // Replace the placeholder with the value from the input map
+                        String replacementValue = input.get(variableName);
+                        content = content.replace(placeholder, replacementValue);
+
+                        System.out.println("Replaced placeholder: " + variableName + " with value: " + replacementValue);
+
+                        // Update the XML content
+                        modifiedXml = modifiedXml.substring(0, contentStart) + content + modifiedXml.substring(contentEnd);
+
+                        // Adjust position based on the length difference
+                        int lengthDifference = content.length() - originalContent.length();
+                        contentEnd += lengthDifference;
+                    }
+                }
+            }
+
+            // Move to the next position
+            pos = contentEnd + 6; // Length of "</w:t>"
+        }
+
+        return modifiedXml;
     }
 }
