@@ -1,6 +1,7 @@
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.StringReader;
 import java.util.List;
 import java.util.regex.Pattern;
 import javax.xml.parsers.DocumentBuilder;
@@ -10,6 +11,8 @@ import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
+import org.w3c.dom.Node;
+import org.xml.sax.InputSource;
 
 import org.apache.poi.xwpf.usermodel.IBodyElement;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
@@ -44,6 +47,24 @@ public class Main {
         }
 
         return sanitized;
+    }
+
+    /**
+     * Attempts to parse a string as XML and returns the root node.
+     * 
+     * @param xmlString the XML string to parse
+     * @param dBuilder the DocumentBuilder to use
+     * @return the parsed XML node, or null if parsing failed
+     */
+    private static Node parseXmlString(String xmlString, DocumentBuilder dBuilder) {
+        try {
+            // Parse the XML string
+            Document doc = dBuilder.parse(new InputSource(new StringReader(xmlString)));
+            return doc.getDocumentElement();
+        } catch (Exception e) {
+            // If parsing fails, return null
+            return null;
+        }
     }
 
     public static void main(String[] args) throws Exception {
@@ -102,9 +123,38 @@ public class Main {
                         // Simple content control
                         String sanitizedTag = sanitizeXmlTagName(tag);
                         Element elem = xmlDoc.createElement(sanitizedTag);
-                        Element textHolder = xmlDoc.createElement("value");
-                        textHolder.setTextContent(sdt.getContent().getText());
-                        elem.appendChild(textHolder);
+
+                        // Get the content text
+                        String contentText = sdt.getContent().getText();
+
+                        // Check if the content text looks like an XML tag
+                        if (contentText.trim().startsWith("<") && contentText.trim().endsWith(">")) {
+                            try {
+                                // Try to parse it as XML
+                                Node xmlNode = parseXmlString(contentText, dBuilder);
+                                if (xmlNode != null) {
+                                    // Successfully parsed as XML, import the node into our document
+                                    Node importedNode = xmlDoc.importNode(xmlNode, true);
+                                    elem.appendChild(importedNode);
+                                } else {
+                                    // Parsing failed, treat as regular text
+                                    Element textHolder = xmlDoc.createElement("value");
+                                    textHolder.setTextContent(contentText);
+                                    elem.appendChild(textHolder);
+                                }
+                            } catch (Exception e) {
+                                // Any error, treat as regular text
+                                Element textHolder = xmlDoc.createElement("value");
+                                textHolder.setTextContent(contentText);
+                                elem.appendChild(textHolder);
+                            }
+                        } else {
+                            // Regular text content
+                            Element textHolder = xmlDoc.createElement("value");
+                            textHolder.setTextContent(contentText);
+                            elem.appendChild(textHolder);
+                        }
+
                         root.appendChild(elem);
                     }
                 }
