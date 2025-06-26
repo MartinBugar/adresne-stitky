@@ -51,6 +51,9 @@ public class Main {
                         System.out.println(line);
                     }
 
+                    // Find and list variable placeholders
+                    findVariablePlaceholders(textLines);
+
                     break; // We found what we needed
                 }
             }
@@ -116,5 +119,53 @@ public class Main {
         }
 
         return lines;
+    }
+
+    /**
+     * Finds variable placeholders in the extracted text lines that start with "./" and end with "/"
+     * and lists them in the console.
+     * 
+     * @param lines List of extracted text lines
+     */
+    private static void findVariablePlaceholders(List<String> lines) {
+        System.out.println("\nVariable placeholders found:");
+
+        for (String line : lines) {
+            // Look for Select="./something" pattern which is common in the XML
+            if (line.contains("Select=\"./")) {
+                int selectIndex = line.indexOf("Select=\"");
+                int start = selectIndex + 8; // Length of "Select=\"" is 8
+                int end = line.indexOf("\"", start);
+
+                if (end != -1) {
+                    // Extract the placeholder including "./" prefix
+                    String fullValue = line.substring(start, end);
+
+                    // Check if the value contains a variable placeholder
+                    if (fullValue.startsWith("./")) {
+                        System.out.println(fullValue);
+                    }
+                }
+            } else {
+                // General case for finding "./" patterns
+                int startIndex = 0;
+                while (true) {
+                    // Find the start of a placeholder
+                    int start = line.indexOf("./", startIndex);
+                    if (start == -1) break;
+
+                    // Find the end of the placeholder (next "/" after "./")
+                    int end = line.indexOf("/", start + 2);
+                    if (end == -1) break;
+
+                    // Extract the placeholder
+                    String placeholder = line.substring(start, end + 1);
+                    System.out.println(placeholder);
+
+                    // Move to the next position
+                    startIndex = end + 1;
+                }
+            }
+        }
     }
 }
