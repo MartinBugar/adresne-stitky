@@ -1,9 +1,4 @@
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -16,9 +11,17 @@ public class Main {
         try {
             // Path to the input file
             String filePath = "input\\file";
+            Map<String, String> input = new HashMap<>();
+            input.put("Label", "LabelZ");
+            input.put("VS", "VSZ");
+            input.put("Oslovenie", "OslovenieZ");
+            input.put("Adresat", "AdresatZ");
+            input.put("AdresnyRiadok1", "AdresnyRiadok1Z");
+            input.put("AdresnyRiadok2", "AdresnyRiadok2Z");
+            input.put("Stat", "StatZ");
 
             // Read the DOCX file and print its content
-            readDocxFile(filePath);
+            readDocxFile(filePath, input);
         } catch (Exception e) {
             System.err.println("Error processing file: " + e.getMessage());
             e.printStackTrace();
@@ -31,7 +34,7 @@ public class Main {
      * @param filePath Path to the DOCX file
      * @throws IOException If there's an error reading the file
      */
-    private static void readDocxFile(String filePath) throws IOException {
+    private static void readDocxFile(String filePath, Map<String, String> input) throws IOException {
         try (FileInputStream fis = new FileInputStream(new File(filePath));
              ZipInputStream zis = new ZipInputStream(fis)) {
 
