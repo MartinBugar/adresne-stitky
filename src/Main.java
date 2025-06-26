@@ -11,6 +11,8 @@ public class Main {
         try {
             // Path to the input file
             String filePath = "input\\file";
+
+            // Create a map with placeholder values
             Map<String, String> input = new HashMap<>();
             input.put("Label", "LabelZ");
             input.put("VS", "VSZ");
@@ -20,13 +22,16 @@ public class Main {
             input.put("AdresnyRiadok2", "AdresnyRiadok2Z");
             input.put("Stat", "StatZ");
 
-            // Read the DOCX file and print its content
+            // Read the DOCX file, replace placeholders, and export to XML file
             readDocxFile(filePath, input);
+
+            System.out.println("XML file with replaced placeholders has been created and exported to src folder.");
         } catch (Exception e) {
             System.err.println("Error processing file: " + e.getMessage());
             e.printStackTrace();
         }
     }
+
 
     /**
      * Reads a DOCX file, replaces placeholders with values from the input map, and prints its content to the console.
@@ -64,6 +69,10 @@ public class Main {
                     // Print the modified XML content
                     System.out.println("\nModified XML content:");
                     System.out.println(modifiedXml);
+
+                    // Export the modified XML to a file in the src folder
+                    exportXmlToFile(modifiedXml, "src\\exported_document.xml");
+
                     return modifiedXml;
                 }
             }
@@ -239,7 +248,7 @@ public class Main {
                             String fullValue = processedPlaceholder.substring(start, end);
 
                             if (fullValue.startsWith("./")) {
-                                variableName = fullValue.substring(2); // Remove "./" prefix
+                                variableName = fullValue.substring(2).trim(); // Remove "./" prefix and trim spaces
                             }
                         }
                     } else {
@@ -248,7 +257,7 @@ public class Main {
                         if (start != -1) {
                             int end = processedPlaceholder.indexOf("/", start + 2);
                             if (end != -1) {
-                                variableName = processedPlaceholder.substring(start + 2, end); // Remove "./" prefix
+                                variableName = processedPlaceholder.substring(start + 2, end).trim(); // Remove "./" prefix and trim spaces
                             }
                         }
                     }
@@ -259,8 +268,8 @@ public class Main {
                         String replacementValue = input.get(variableName);
                         content = content.replace(placeholder, replacementValue);
 
-                        System.out.println("Replaced placeholder: " + variableName + " with value: " + replacementValue);
-
+//                        System.out.println("Replaced placeholder: " + variableName + " with value: " + replacementValue);
+                        System.out.println(replacementValue);
                         // Update the XML content
                         modifiedXml = modifiedXml.substring(0, contentStart) + content + modifiedXml.substring(contentEnd);
 
@@ -276,5 +285,23 @@ public class Main {
         }
 
         return modifiedXml;
+    }
+
+    /**
+     * Exports the modified XML content to a file.
+     *
+     * @param xmlContent The XML content to export
+     * @param filePath   The path where the XML file will be saved
+     * @throws IOException If there's an error writing to the file
+     */
+    private static void exportXmlToFile(String xmlContent, String filePath) {
+        try (FileWriter writer = new FileWriter(filePath);
+             BufferedWriter bufferedWriter = new BufferedWriter(writer)) {
+            bufferedWriter.write(xmlContent);
+            System.out.println("XML file with replaced placeholders exported to: " + filePath);
+        } catch (IOException e) {
+            System.err.println("Error exporting XML file: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 }
