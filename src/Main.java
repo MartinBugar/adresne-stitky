@@ -5,7 +5,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -17,6 +19,25 @@ public class Main {
 
             // Read the DOCX file and print its content
             readDocxFile(filePath);
+
+            // Example of using the replacePlaceholders method
+            System.out.println("\nDemonstrating placeholder replacement:");
+            List<String> exampleLines = new ArrayList<>();
+            exampleLines.add("<Content Select=\"./Name\"/>");
+            exampleLines.add("<Content Select=\"./Address\"/>");
+            exampleLines.add("<Content Select=\"./City\"/>");
+
+            // Replace placeholders with actual values
+            List<String> replacedLines = replacePlaceholders(exampleLines, 
+                "Name", "John Doe",
+                "Address", "123 Main St",
+                "City", "New York");
+
+            // Print the replaced lines
+            System.out.println("\nAfter replacement:");
+            for (String line : replacedLines) {
+                System.out.println(line);
+            }
 
         } catch (Exception e) {
             System.err.println("Error processing file: " + e.getMessage());
@@ -169,5 +190,66 @@ public class Main {
                 }
             }
         }
+    }
+
+    /**
+     * Replaces placeholders in the text lines with provided values.
+     * 
+     * @param lines List of text lines containing placeholders
+     * @param replacements Variable number of string parameters in key-value pairs (placeholder name, replacement value)
+     * @return List of text lines with placeholders replaced by the provided values
+     * @throws IllegalArgumentException If the number of parameters is odd (must be key-value pairs)
+     */
+    private static List<String> replacePlaceholders(List<String> lines, String... replacements) {
+        // Validate input parameters
+        if (replacements.length % 2 != 0) {
+            throw new IllegalArgumentException("Replacements must be provided as key-value pairs");
+        }
+
+        // Create a map of placeholder names to replacement values
+        Map<String, String> replacementMap = new HashMap<>();
+        for (int i = 0; i < replacements.length; i += 2) {
+            replacementMap.put(replacements[i], replacements[i + 1]);
+        }
+
+        // List all placeholders that will be replaced
+        System.out.println("\nPlaceholders to be replaced:");
+        for (Map.Entry<String, String> entry : replacementMap.entrySet()) {
+            System.out.println(entry.getKey() + " -> " + entry.getValue());
+        }
+
+        // Create a new list for the replaced lines
+        List<String> replacedLines = new ArrayList<>();
+
+        // Process each line
+        for (String line : lines) {
+            String replacedLine = line;
+
+            // Handle Select="./something" pattern
+            if (line.contains("Select=\"./")) {
+                for (Map.Entry<String, String> entry : replacementMap.entrySet()) {
+                    String placeholder = "./"+entry.getKey();
+                    String pattern = "Select=\"" + placeholder + "\"";
+
+                    if (replacedLine.contains(pattern)) {
+                        // For XML placeholders, we replace the entire tag with the value
+                        replacedLine = entry.getValue();
+                        break;
+                    }
+                }
+            } else {
+                // Handle general "./" patterns
+                for (Map.Entry<String, String> entry : replacementMap.entrySet()) {
+                    String placeholder = "./"+entry.getKey()+"/";
+                    if (replacedLine.contains(placeholder)) {
+                        replacedLine = replacedLine.replace(placeholder, entry.getValue());
+                    }
+                }
+            }
+
+            replacedLines.add(replacedLine);
+        }
+
+        return replacedLines;
     }
 }
