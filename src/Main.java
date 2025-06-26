@@ -1,28 +1,22 @@
-import org.apache.poi.xwpf.usermodel.XWPFDocument;
-import org.apache.poi.xwpf.usermodel.XWPFParagraph;
-
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 public class Main {
     public static void main(String[] args) {
         try {
             // Path to the input file
-            String filePath = "src\\file.docx";
+            String filePath = "input\\file";
 
-            // Extract variables from the DOCX file
-            List<String> variables = extractVariablesFromDocx(filePath);
-
-            // Print the found variables
-            System.out.println("Found variables:");
-            for (String variable : variables) {
-                System.out.println(variable);
-            }
+            // Read the DOCX file and print its content
+            readDocxFile(filePath);
 
         } catch (Exception e) {
             System.err.println("Error processing file: " + e.getMessage());
@@ -31,36 +25,96 @@ public class Main {
     }
 
     /**
-     * Extracts variables from a DOCX file.
-     * Variables are defined as text that starts with "./ and ends with "/
+     * Reads a DOCX file and prints its content to the console.
      * 
      * @param filePath Path to the DOCX file
-     * @return List of variables found in the file
      * @throws IOException If there's an error reading the file
      */
-    private static List<String> extractVariablesFromDocx(String filePath) throws IOException {
-        List<String> variables = new ArrayList<>();
-
-        // Create a pattern to match variables
-        // Variables start with "./ and ends with "/
-        Pattern pattern = Pattern.compile("\\\"\\\\./(.*?)/\\\"");
-
+    private static void readDocxFile(String filePath) throws IOException {
         try (FileInputStream fis = new FileInputStream(new File(filePath));
-             XWPFDocument document = new XWPFDocument(fis)) {
+             ZipInputStream zis = new ZipInputStream(fis)) {
 
-            // Extract text from paragraphs
-            for (XWPFParagraph paragraph : document.getParagraphs()) {
-                String text = paragraph.getText();
-                Matcher matcher = pattern.matcher(text);
+            System.out.println("DOCX file contents:");
 
-                // Find all matches in the current paragraph
-                while (matcher.find()) {
-                    // Add the variable (without the "./ and "/ delimiters)
-                    variables.add(matcher.group(1));
+            ZipEntry entry;
+            while ((entry = zis.getNextEntry()) != null) {
+                // Look for the main document content
+                if (entry.getName().equals("word/document.xml")) {
+                    // Read the XML content
+                    String xmlContent = readInputStream(zis);
+
+                    // Extract text from XML (simple approach)
+                    List<String> textLines = extractTextFromXml(xmlContent);
+
+                    // Print all lines
+                    for (String line : textLines) {
+                        System.out.println(line);
+                    }
+
+                    break; // We found what we needed
                 }
             }
         }
+    }
 
-        return variables;
+    /**
+     * Reads an input stream into a string.
+     */
+    private static String readInputStream(InputStream is) throws IOException {
+        StringBuilder sb = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, "UTF-8"))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                sb.append(line).append("\n");
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Extracts template placeholders from XML by looking for text between <w:t> tags
+     * that contains XML-like content (e.g., &lt;Content Select="./VS"/&gt;).
+     */
+    private static List<String> extractTextFromXml(String xml) {
+        List<String> lines = new ArrayList<>();
+
+        // Simple approach: extract all text between <w:t> and </w:t> tags
+        int pos = 0;
+        while (pos < xml.length()) {
+            int startTag = xml.indexOf("<w:t", pos);
+            if (startTag == -1) break;
+
+            int contentStart = xml.indexOf(">", startTag);
+            if (contentStart == -1) break;
+            contentStart++; // Move past the '>'
+
+            int contentEnd = xml.indexOf("</w:t>", contentStart);
+            if (contentEnd == -1) break;
+
+            // Extract the text content
+            String content = xml.substring(contentStart, contentEnd);
+
+            // Look for template placeholders (text that looks like XML entities)
+            if (content.contains("&lt;") && content.contains("&gt;")) {
+                // Extract the template placeholder
+                int placeholderStart = content.indexOf("&lt;");
+                int placeholderEnd = content.lastIndexOf("&gt;") + 4; // Length of "&gt;"
+
+                if (placeholderStart >= 0 && placeholderEnd > placeholderStart) {
+                    String placeholder = content.substring(placeholderStart, placeholderEnd);
+
+                    // Convert XML entities to actual characters
+                    placeholder = placeholder.replace("&lt;", "<").replace("&gt;", ">");
+
+                    // Add to lines
+                    lines.add(placeholder);
+                }
+            }
+
+            // Move to the next position
+            pos = contentEnd + 6; // Length of "</w:t>"
+        }
+
+        return lines;
     }
 }
