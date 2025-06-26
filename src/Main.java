@@ -40,10 +40,9 @@ public class Main {
      *
      * @param filePath Path to the DOCX file
      * @param input    Map containing key-value pairs for placeholder replacement
-     * @return
      * @throws IOException If there's an error reading the file
      */
-    private static String readDocxFile(String filePath, Map<String, String> input) throws IOException {
+    private static void readDocxFile(String filePath, Map<String, String> input) throws IOException {
         try (FileInputStream fis = new FileInputStream(new File(filePath));
              ZipInputStream zis = new ZipInputStream(fis)) {
 
@@ -71,24 +70,20 @@ public class Main {
                     // Print the modified XML content
                     System.out.println("\nModified XML content:");
                     System.out.println(modifiedXml);
-
-                    return modifiedXml;
                 }
             }
         }
-        return filePath;
     }
 
     /**
-     * Reads an input stream into a string.
+     * Reads an input stream into a string without closing the stream.
      */
     private static String readInputStream(InputStream is) throws IOException {
         StringBuilder sb = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, "UTF-8"))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                sb.append(line).append("\n");
-            }
+        BufferedReader reader = new BufferedReader(new InputStreamReader(is, "UTF-8"));
+        String line;
+        while ((line = reader.readLine()) != null) {
+            sb.append(line).append("\n");
         }
         return sb.toString();
     }
