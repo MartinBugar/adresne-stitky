@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
+import java.util.zip.ZipOutputStream;
 
 public class Main {
     public static void main(String[] args) {
@@ -28,6 +29,7 @@ public class Main {
 
             System.out.println("XML file with replaced placeholders has been created and exported to src folder.");
             System.out.println("TXT file with replaced placeholders has been created and exported to src folder.");
+            System.out.println("DOCX file with replaced placeholders has been created and exported to src folder.");
         } catch (Exception e) {
             System.err.println("Error processing file: " + e.getMessage());
             e.printStackTrace();
@@ -49,6 +51,7 @@ public class Main {
             System.out.println("DOCX file contents:");
 
             ZipEntry entry;
+            String modifiedXml = null;
             while ((entry = zis.getNextEntry()) != null) {
                 // Look for the main document content
                 if (entry.getName().equals("word/document.xml")) {
@@ -56,7 +59,7 @@ public class Main {
                     String xmlContent = readInputStream(zis);
 
                     // Extract text from XML and replace placeholders
-                    String modifiedXml = xmlContent;
+                    modifiedXml = xmlContent;
                     List<String> textLines = extractTextFromXml(xmlContent);
 
                     // Print all lines
@@ -71,6 +74,11 @@ public class Main {
                     System.out.println("\nModified XML content:");
                     System.out.println(modifiedXml);
                 }
+            }
+
+            // Create a DOCX file with the replaced placeholders
+            if (modifiedXml != null) {
+                createDocxFile(filePath, modifiedXml);
             }
         }
     }
@@ -320,6 +328,60 @@ public class Main {
         } catch (IOException e) {
             System.err.println("Error exporting TXT file: " + e.getMessage());
             e.printStackTrace();
+        }
+    }
+
+    /**
+     * Creates a DOCX file with the replaced placeholders.
+     *
+     * @param originalFilePath Path to the original DOCX file
+     * @param modifiedXml      The modified XML content with replaced placeholders
+     * @throws IOException If there's an error creating the file
+     */
+    private static void createDocxFile(String originalFilePath, String modifiedXml) throws IOException {
+        // Get the current working directory
+        String currentDir = System.getProperty("user.dir");
+
+        // Create the src directory if it doesn't exist
+        File srcDir = new File(currentDir, "src");
+        if (!srcDir.exists()) {
+            srcDir.mkdir();
+        }
+
+        // Create the output file path
+        String outputFilePath = currentDir + "\\src\\output.docx";
+
+        try (FileInputStream fis = new FileInputStream(new File(originalFilePath));
+             ZipInputStream zis = new ZipInputStream(fis);
+             FileOutputStream fos = new FileOutputStream(outputFilePath);
+             ZipOutputStream zos = new ZipOutputStream(fos)) {
+
+            ZipEntry entry;
+            byte[] buffer = new byte[1024];
+
+            while ((entry = zis.getNextEntry()) != null) {
+                // Create a new entry in the output file
+                ZipEntry newEntry = new ZipEntry(entry.getName());
+                zos.putNextEntry(newEntry);
+
+                // If this is the main document content, write the modified XML
+                if (entry.getName().equals("word/document.xml")) {
+                    // Write the modified XML content
+                    zos.write(modifiedXml.getBytes("UTF-8"));
+                } else {
+                    // Copy the entry content from the original file
+                    int len;
+                    while ((len = zis.read(buffer)) > 0) {
+                        zos.write(buffer, 0, len);
+                    }
+                }
+
+                // Close the entry
+                zos.closeEntry();
+                zis.closeEntry();
+            }
+
+            System.out.println("DOCX file with replaced placeholders exported to: " + outputFilePath);
         }
     }
 
