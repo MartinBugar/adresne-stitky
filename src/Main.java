@@ -34,8 +34,17 @@ public class Main {
             rec2.put("AdresnyRiadok2", "010 01 Martin");
             rec2.put("Stat",        "Madarsko");
 
+            Map<String,String> rec3 = new HashMap<>();
+            rec3.put("Label",       "ID-12345");
+            rec3.put("VS",          "2026");
+            rec3.put("Oslovenie",   "Vážený pán Hurban,");
+            rec3.put("Adresat",     "Ján Hurban");
+            rec3.put("AdresnyRiadok1", "Hlavná 25");
+            rec3.put("AdresnyRiadok2", "010 01 Martin");
+            rec3.put("Stat",        "Madarsko");
             dataList.add(rec1);
             dataList.add(rec2);
+            dataList.add(rec3);
 
 
             // Read the DOCX file, replace placeholders, and export to XML file
@@ -89,6 +98,13 @@ public class Main {
             // Process all datasets and create a single document
             if (originalXml != null) {
                 String modifiedXml = originalXml;
+
+                // Remove <EndRepeat/> and <Repeat Select="./Label "/> from the original XML for the first record
+                modifiedXml = modifiedXml.replace("&lt;EndRepeat/&gt;", "");
+                modifiedXml = modifiedXml.replace("<EndRepeat/>", "");
+                modifiedXml = modifiedXml.replace("&lt;Repeat Select=\"./Label \"/&gt;", "");
+                modifiedXml = modifiedXml.replace("<Repeat Select=\"./Label \"/>", "");
+
                 Map<String, String> allReplacedValues = new LinkedHashMap<>();
 
                 // Process each dataset in the dataList
@@ -126,9 +142,11 @@ public class Main {
                                 originalXml.lastIndexOf("</w:body>")
                             );
 
-                            // Remove <EndRepeat/> from the template content
+                            // Remove <EndRepeat/> and <Repeat Select="./Label "/> from the template content
                             templateContent = templateContent.replace("&lt;EndRepeat/&gt;", "");
                             templateContent = templateContent.replace("<EndRepeat/>", "");
+                            templateContent = templateContent.replace("&lt;Repeat Select=\"./Label \"/&gt;", "");
+                            templateContent = templateContent.replace("<Repeat Select=\"./Label \"/>", "");
 
                             modifiedXml = beforeBodyEnd + paragraphBreak + templateContent + afterBodyEnd;
                         }
@@ -138,9 +156,11 @@ public class Main {
                 // Export all replaced values to a single TXT file
                 exportReplacedValuesToTxt(allReplacedValues, -1);
 
-                // Remove <EndRepeat/> from the final output XML
+                // Remove <EndRepeat/> and <Repeat Select="./Label "/> from the final output XML
                 modifiedXml = modifiedXml.replace("&lt;EndRepeat/&gt;", "");
                 modifiedXml = modifiedXml.replace("<EndRepeat/>", "");
+                modifiedXml = modifiedXml.replace("&lt;Repeat Select=\"./Label \"/&gt;", "");
+                modifiedXml = modifiedXml.replace("<Repeat Select=\"./Label \"/>", "");
 
                 // Create a single DOCX file with all datasets
                 createDocxFile(filePath, modifiedXml, -1);
@@ -357,9 +377,11 @@ public class Main {
             exportReplacedValuesToTxt(replacedValues, index);
         }
 
-        // Remove <EndRepeat/> from the modified XML
+        // Remove <EndRepeat/> and <Repeat Select="./Label "/> from the modified XML
         modifiedXml = modifiedXml.replace("&lt;EndRepeat/&gt;", "");
         modifiedXml = modifiedXml.replace("<EndRepeat/>", "");
+        modifiedXml = modifiedXml.replace("&lt;Repeat Select=\"./Label \"/&gt;", "");
+        modifiedXml = modifiedXml.replace("<Repeat Select=\"./Label \"/>", "");
 
         return modifiedXml;
     }
@@ -401,11 +423,18 @@ public class Main {
 
                 // Write each replaced value
                 for (Map.Entry<String, String> entry : replacedValues.entrySet()) {
+                    String key = entry.getKey();
                     String value = entry.getValue();
-                    // Remove <EndRepeat/> from the value
+                    // Remove <EndRepeat/> and <Repeat Select="./Label "/> from both key and value
+                    key = key.replace("&lt;EndRepeat/&gt;", "");
+                    key = key.replace("<EndRepeat/>", "");
+                    key = key.replace("&lt;Repeat Select=\"./Label \"/&gt;", "");
+                    key = key.replace("<Repeat Select=\"./Label \"/>", "");
                     value = value.replace("&lt;EndRepeat/&gt;", "");
                     value = value.replace("<EndRepeat/>", "");
-                    bufferedWriter.write(entry.getKey() + ": " + value + "\n");
+                    value = value.replace("&lt;Repeat Select=\"./Label \"/&gt;", "");
+                    value = value.replace("<Repeat Select=\"./Label \"/>", "");
+                    bufferedWriter.write(key + ": " + value + "\n");
                 }
 
                 System.out.println("TXT file with replaced values exported to: " + filePath);
