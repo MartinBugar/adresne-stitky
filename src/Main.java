@@ -24,7 +24,18 @@ public class Main {
             rec1.put("AdresnyRiadok1", "Hlavná 10");
             rec1.put("AdresnyRiadok2", "010 01 Žilina");
             rec1.put("Stat",        "Slovensko");
+
+            Map<String,String> rec2 = new HashMap<>();
+            rec2.put("Label",       "ID-12345");
+            rec2.put("VS",          "2025");
+            rec2.put("Oslovenie",   "Vážený pán Novák,");
+            rec2.put("Adresat",     "Ján Novák");
+            rec2.put("AdresnyRiadok1", "Hlavná 10");
+            rec2.put("AdresnyRiadok2", "010 01 Žilina");
+            rec2.put("Stat",        "Slovensko");
+
             dataList.add(rec1);
+            dataList.add(rec2);
 
 
             // Read the DOCX file, replace placeholders, and export to XML file
