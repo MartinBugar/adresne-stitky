@@ -121,16 +121,26 @@ public class Main {
                             String afterBodyEnd = modifiedXml.substring(bodyEndPos);
 
                             // Get the original template content (we'll use the original XML for the next dataset)
-                            modifiedXml = beforeBodyEnd + paragraphBreak + originalXml.substring(
+                            String templateContent = originalXml.substring(
                                 originalXml.indexOf("<w:body>") + 8, 
                                 originalXml.lastIndexOf("</w:body>")
-                            ) + afterBodyEnd;
+                            );
+
+                            // Remove <EndRepeat/> from the template content
+                            templateContent = templateContent.replace("&lt;EndRepeat/&gt;", "");
+                            templateContent = templateContent.replace("<EndRepeat/>", "");
+
+                            modifiedXml = beforeBodyEnd + paragraphBreak + templateContent + afterBodyEnd;
                         }
                     }
                 }
 
                 // Export all replaced values to a single TXT file
                 exportReplacedValuesToTxt(allReplacedValues, -1);
+
+                // Remove <EndRepeat/> from the final output XML
+                modifiedXml = modifiedXml.replace("&lt;EndRepeat/&gt;", "");
+                modifiedXml = modifiedXml.replace("<EndRepeat/>", "");
 
                 // Create a single DOCX file with all datasets
                 createDocxFile(filePath, modifiedXml, -1);
@@ -347,6 +357,10 @@ public class Main {
             exportReplacedValuesToTxt(replacedValues, index);
         }
 
+        // Remove <EndRepeat/> from the modified XML
+        modifiedXml = modifiedXml.replace("&lt;EndRepeat/&gt;", "");
+        modifiedXml = modifiedXml.replace("<EndRepeat/>", "");
+
         return modifiedXml;
     }
 
@@ -387,7 +401,11 @@ public class Main {
 
                 // Write each replaced value
                 for (Map.Entry<String, String> entry : replacedValues.entrySet()) {
-                    bufferedWriter.write(entry.getKey() + ": " + entry.getValue() + "\n");
+                    String value = entry.getValue();
+                    // Remove <EndRepeat/> from the value
+                    value = value.replace("&lt;EndRepeat/&gt;", "");
+                    value = value.replace("<EndRepeat/>", "");
+                    bufferedWriter.write(entry.getKey() + ": " + value + "\n");
                 }
 
                 System.out.println("TXT file with replaced values exported to: " + filePath);
