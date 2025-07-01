@@ -14,37 +14,43 @@ public class Main {
             // Path to the input file
             String filePath = "input\\file";
 
-            // Create a map with placeholder values
-            Map<String, String> input = new HashMap<>();
-            input.put("Label", "LabelZ");
-            input.put("VS", "VSZ");
-            input.put("Oslovenie", "OslovenieZ");
-            input.put("Adresat", "AdresatZ");
-            input.put("AdresnyRiadok1", "AdresnyRiadok1Z");
-            input.put("AdresnyRiadok2", "AdresnyRiadok2Z");
-            input.put("Stat", "StatZ");
+            List<Map<String, String>> dataList = new ArrayList<>();
+
+            Map<String,String> rec1 = new HashMap<>();
+            rec1.put("Label",       "ID-12345");
+            rec1.put("VS",          "2025");
+            rec1.put("Oslovenie",   "Vážený pán Novák,");
+            rec1.put("Adresat",     "Ján Novák");
+            rec1.put("AdresnyRiadok1", "Hlavná 10");
+            rec1.put("AdresnyRiadok2", "010 01 Žilina");
+            rec1.put("Stat",        "Slovensko");
+            dataList.add(rec1);
+
 
             // Read the DOCX file, replace placeholders, and export to XML file
-            readDocxFile(filePath, input);
+            readDocxFile(filePath, dataList);
 
-            System.out.println("XML file with replaced placeholders has been created and exported to src folder.");
-            System.out.println("TXT file with replaced placeholders has been created and exported to src folder.");
-            System.out.println("DOCX file with replaced placeholders has been created and exported to src folder.");
+
         } catch (Exception e) {
             System.err.println("Error processing file: " + e.getMessage());
             e.printStackTrace();
         }
     }
 
+    private static void transformFile() {
+
+
+    }
+
 
     /**
-     * Reads a DOCX file, replaces placeholders with values from the input map, and prints its content to the console.
+     * Reads a DOCX file, replaces placeholders with values from the dataList, and prints its content to the console.
      *
      * @param filePath Path to the DOCX file
-     * @param input    Map containing key-value pairs for placeholder replacement
+     * @param dataList List of maps containing key-value pairs for placeholder replacement
      * @throws IOException If there's an error reading the file
      */
-    private static void readDocxFile(String filePath, Map<String, String> input) throws IOException {
+    private static void readDocxFile(String filePath, List<Map<String, String>> dataList) throws IOException {
         try (FileInputStream fis = new FileInputStream(new File(filePath));
              ZipInputStream zis = new ZipInputStream(fis)) {
 
@@ -68,7 +74,7 @@ public class Main {
                     }
 
                     // Find and replace variable placeholders
-                    modifiedXml = replacePlaceholders(xmlContent, input);
+                    modifiedXml = replacePlaceholders(xmlContent, dataList.get(0));
 
                     // Print the modified XML content
                     System.out.println("\nModified XML content:");
