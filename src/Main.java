@@ -27,12 +27,12 @@ public class Main {
 
             Map<String,String> rec2 = new HashMap<>();
             rec2.put("Label",       "ID-12345");
-            rec2.put("VS",          "2025");
-            rec2.put("Oslovenie",   "Vážený pán Novák,");
-            rec2.put("Adresat",     "Ján Novák");
-            rec2.put("AdresnyRiadok1", "Hlavná 10");
-            rec2.put("AdresnyRiadok2", "010 01 Žilina");
-            rec2.put("Stat",        "Slovensko");
+            rec2.put("VS",          "2026");
+            rec2.put("Oslovenie",   "Vážený pán Hurban,");
+            rec2.put("Adresat",     "Ján Hurban");
+            rec2.put("AdresnyRiadok1", "Hlavná 25");
+            rec2.put("AdresnyRiadok2", "010 01 Martin");
+            rec2.put("Stat",        "Madarsko");
 
             dataList.add(rec1);
             dataList.add(rec2);
@@ -62,40 +62,44 @@ public class Main {
      * @throws IOException If there's an error reading the file
      */
     private static void readDocxFile(String filePath, List<Map<String, String>> dataList) throws IOException {
-        try (FileInputStream fis = new FileInputStream(new File(filePath));
-             ZipInputStream zis = new ZipInputStream(fis)) {
+        // Process each dataset in the dataList
+        for (int i = 0; i < dataList.size(); i++) {
+            try (FileInputStream fis = new FileInputStream(new File(filePath));
+                 ZipInputStream zis = new ZipInputStream(fis)) {
 
-            System.out.println("DOCX file contents:");
+                System.out.println("Processing dataset " + (i + 1) + " of " + dataList.size());
+                System.out.println("DOCX file contents:");
 
-            ZipEntry entry;
-            String modifiedXml = null;
-            while ((entry = zis.getNextEntry()) != null) {
-                // Look for the main document content
-                if (entry.getName().equals("word/document.xml")) {
-                    // Read the XML content
-                    String xmlContent = readInputStream(zis);
+                ZipEntry entry;
+                String modifiedXml = null;
+                while ((entry = zis.getNextEntry()) != null) {
+                    // Look for the main document content
+                    if (entry.getName().equals("word/document.xml")) {
+                        // Read the XML content
+                        String xmlContent = readInputStream(zis);
 
-                    // Extract text from XML and replace placeholders
-                    modifiedXml = xmlContent;
-                    List<String> textLines = extractTextFromXml(xmlContent);
+                        // Extract text from XML and replace placeholders
+                        modifiedXml = xmlContent;
+                        List<String> textLines = extractTextFromXml(xmlContent);
 
-                    // Print all lines
-                    for (String line : textLines) {
-                        System.out.println(line);
+                        // Print all lines
+                        for (String line : textLines) {
+                            System.out.println(line);
+                        }
+
+                        // Find and replace variable placeholders for the current dataset
+                        modifiedXml = replacePlaceholders(xmlContent, dataList.get(i), i);
+
+                        // Print the modified XML content
+                        System.out.println("\nModified XML content for dataset " + (i + 1) + ":");
+                        System.out.println(modifiedXml);
                     }
-
-                    // Find and replace variable placeholders
-                    modifiedXml = replacePlaceholders(xmlContent, dataList.get(0));
-
-                    // Print the modified XML content
-                    System.out.println("\nModified XML content:");
-                    System.out.println(modifiedXml);
                 }
-            }
 
-            // Create a DOCX file with the replaced placeholders
-            if (modifiedXml != null) {
-                createDocxFile(filePath, modifiedXml);
+                // Create a DOCX file with the replaced placeholders for the current dataset
+                if (modifiedXml != null) {
+                    createDocxFile(filePath, modifiedXml, i);
+                }
             }
         }
     }
@@ -215,9 +219,10 @@ public class Main {
      *
      * @param xmlContent The original XML content
      * @param input      Map containing key-value pairs for placeholder replacement
+     * @param index      Index of the dataset being processed
      * @return The modified XML content with placeholders replaced
      */
-    private static String replacePlaceholders(String xmlContent, Map<String, String> input) {
+    private static String replacePlaceholders(String xmlContent, Map<String, String> input, int index) {
         String modifiedXml = xmlContent;
         Map<String, String> replacedValues = new LinkedHashMap<>();
 
@@ -303,7 +308,7 @@ public class Main {
         }
 
         // Export the replaced values to a TXT file
-        exportReplacedValuesToTxt(replacedValues);
+        exportReplacedValuesToTxt(replacedValues, index);
 
         return modifiedXml;
     }
@@ -312,8 +317,9 @@ public class Main {
      * Exports the replaced values to a TXT file in the src folder.
      *
      * @param replacedValues Map containing the replaced values
+     * @param index Index of the dataset being processed (used to create unique filenames)
      */
-    private static void exportReplacedValuesToTxt(Map<String, String> replacedValues) {
+    private static void exportReplacedValuesToTxt(Map<String, String> replacedValues, int index) {
         try {
             // Get the current working directory
             String currentDir = System.getProperty("user.dir");
@@ -324,8 +330,8 @@ public class Main {
                 srcDir.mkdir();
             }
 
-            // Create the file path
-            String filePath = currentDir + "\\src\\replaced_values.txt";
+            // Create the file path with a unique name based on the index
+            String filePath = currentDir + "\\src\\replaced_values_" + (index + 1) + ".txt";
 
             // Write the replaced values to the file
             try (FileWriter writer = new FileWriter(filePath);
@@ -353,9 +359,10 @@ public class Main {
      *
      * @param originalFilePath Path to the original DOCX file
      * @param modifiedXml      The modified XML content with replaced placeholders
+     * @param index            Index of the dataset being processed (used to create unique filenames)
      * @throws IOException If there's an error creating the file
      */
-    private static void createDocxFile(String originalFilePath, String modifiedXml) throws IOException {
+    private static void createDocxFile(String originalFilePath, String modifiedXml, int index) throws IOException {
         // Get the current working directory
         String currentDir = System.getProperty("user.dir");
 
@@ -365,8 +372,8 @@ public class Main {
             srcDir.mkdir();
         }
 
-        // Create the output file path
-        String outputFilePath = currentDir + "\\src\\output.docx";
+        // Create the output file path with a unique name based on the index
+        String outputFilePath = currentDir + "\\src\\output_" + (index + 1) + ".docx";
 
         try (FileInputStream fis = new FileInputStream(new File(originalFilePath));
              ZipInputStream zis = new ZipInputStream(fis);
