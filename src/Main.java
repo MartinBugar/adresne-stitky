@@ -1,8 +1,13 @@
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.ZipEntry;
@@ -128,20 +133,11 @@ public class Main {
             if (originalXml != null) {
                 // Remove control tags from the template
                 String modifiedXml = removeXmlTags(originalXml);
-                // Store all replaced values for potential logging or debugging
-                Map<String, String> allReplacedValues = new LinkedHashMap<>();
 
                 // Process each dataset (record) in the data list
                 for (int i = 0; i < dataList.size(); i++) {
-                    // Track which values were replaced for this specific dataset
-                    Map<String, String> datasetReplacedValues = new LinkedHashMap<>();
                     // Replace placeholders with actual values from the current dataset
-                    modifiedXml = replacePlaceholders(modifiedXml, dataList.get(i), i, datasetReplacedValues);
-
-                    // Add the replaced values to the master list with dataset index prefix
-                    final int datasetIndex = i + 1;
-                    datasetReplacedValues.forEach((key, value) -> 
-                        allReplacedValues.put("Dataset " + datasetIndex + " - " + key, value));
+                    modifiedXml = replacePlaceholders(modifiedXml, dataList.get(i));
 
                     // If this isn't the last dataset, duplicate the template for the next record
                     if (i < dataList.size() - 1) {
@@ -165,8 +161,7 @@ public class Main {
                 }
 
                 // Create the output DOCX file with all processed records
-                // The -1 index indicates this is a combined file with all records
-                createDocxFile(filePath, removeXmlTags(modifiedXml), -1);
+                createDocxFile(filePath, removeXmlTags(modifiedXml));
             }
         }
     }
@@ -182,7 +177,7 @@ public class Main {
     private static String readInputStream(InputStream is) throws IOException {
         StringBuilder sb = new StringBuilder();
         // Use UTF-8 encoding to properly handle international characters
-        BufferedReader reader = new BufferedReader(new InputStreamReader(is, "UTF-8"));
+        BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
         String line;
         // Read the stream line by line and append to the StringBuilder
         while ((line = reader.readLine()) != null) {
@@ -192,71 +187,16 @@ public class Main {
     }
 
     /**
-     * Extracts template placeholders from XML by looking for text between &lt;w:t&gt; tags
-     * that contains XML-like content (e.g., &lt;Content Select="./VS"/&gt;).
-     * This method identifies all placeholders in the document that need to be replaced.
-     * 
-     * @param xml The XML content to search for placeholders
-     * @return A list of placeholder strings found in the XML
-     */
-    private static List<String> extractTextFromXml(String xml) {
-        List<String> lines = new ArrayList<>();
-        int pos = 0;
-
-        // Iterate through the XML content looking for text tags
-        while (pos < xml.length()) {
-            // Find the next text tag
-            int startTag = xml.indexOf("<w:t", pos);
-            if (startTag == -1) break; // No more text tags
-
-            // Find the end of the opening tag
-            int contentStart = xml.indexOf(">", startTag);
-            if (contentStart == -1) break;
-            contentStart++; // Move past the '>'
-
-            // Find the closing tag
-            int contentEnd = xml.indexOf("</w:t>", contentStart);
-            if (contentEnd == -1) break;
-
-            // Extract the content between the tags
-            String content = xml.substring(contentStart, contentEnd);
-
-            // Check if the content contains XML-encoded tags (potential placeholders)
-            if (content.contains("&lt;") && content.contains("&gt;")) {
-                int placeholderStart = content.indexOf("&lt;");
-                int placeholderEnd = content.lastIndexOf("&gt;") + 4; // Include the "&gt;"
-
-                // Extract and decode the placeholder
-                if (placeholderStart >= 0 && placeholderEnd > placeholderStart) {
-                    String placeholder = content.substring(placeholderStart, placeholderEnd)
-                                               .replace("&lt;", "<") // Convert HTML entities to XML characters
-                                               .replace("&gt;", ">");
-                    lines.add(placeholder);
-                }
-            }
-
-            // Move to the position after the closing tag
-            pos = contentEnd + 6; // Length of "</w:t>"
-        }
-
-        return lines;
-    }
-
-    /**
      * Replaces placeholders in the XML content with values from the input map.
      * This method scans through the XML content, identifies placeholders in the format
      * &lt;Content Select="./KEY"/&gt;, and replaces them with corresponding values from the input map.
      *
      * @param xmlContent The original XML content from the DOCX template
      * @param input Map containing key-value pairs for placeholder replacement
-     * @param index Index of the dataset being processed (used for tracking)
-     * @param outReplacedValues Optional map to collect replaced values for logging/debugging
      * @return The modified XML content with placeholders replaced by actual values
      */
-    private static String replacePlaceholders(String xmlContent, Map<String, String> input, int index, Map<String, String> outReplacedValues) {
+    private static String replacePlaceholders(String xmlContent, Map<String, String> input) {
         String modifiedXml = xmlContent;
-        // Use the provided map or create a new one to track replacements
-        Map<String, String> replacedValues = outReplacedValues != null ? outReplacedValues : new LinkedHashMap<>();
 
         int pos = 0;
         // Iterate through the XML content looking for text tags that might contain placeholders
@@ -296,8 +236,6 @@ public class Main {
                         String replacementValue = input.get(variableName);
                         // Replace the placeholder with the actual value
                         content = content.replace(placeholder, replacementValue);
-                        // Track which values were replaced
-                        replacedValues.put(variableName, replacementValue);
 
                         // Update the XML content with the replaced value
                         modifiedXml = modifiedXml.substring(0, contentStart) + content + modifiedXml.substring(contentEnd);
@@ -360,10 +298,9 @@ public class Main {
      *
      * @param originalFilePath Path to the original DOCX template file
      * @param modifiedXml The modified XML content with placeholders replaced by actual values
-     * @param index Index of the dataset being processed (-1 for combined output with all records)
      * @throws IOException If there's an error reading the original file or writing the new file
      */
-    private static void createDocxFile(String originalFilePath, String modifiedXml, int index) throws IOException {
+    private static void createDocxFile(String originalFilePath, String modifiedXml) throws IOException {
         // Get the current working directory
         String currentDir = System.getProperty("user.dir");
         // Ensure the src directory exists
@@ -372,9 +309,8 @@ public class Main {
             srcDir.mkdir();
         }
 
-        // Generate the output filename based on the index
-        // If index is -1, this is a combined file with all records
-        String fileName = index == -1 ? "output_all.docx" : "output_" + (index + 1) + ".docx";
+        // Generate the output filename
+        String fileName = "output_all.docx";
         File outputFile = new File(srcDir, fileName);
 
         // Open streams for reading the original file and writing the new file
