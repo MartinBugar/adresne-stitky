@@ -62,44 +62,78 @@ public class Main {
      * @throws IOException If there's an error reading the file
      */
     private static void readDocxFile(String filePath, List<Map<String, String>> dataList) throws IOException {
-        // Process each dataset in the dataList
-        for (int i = 0; i < dataList.size(); i++) {
-            try (FileInputStream fis = new FileInputStream(new File(filePath));
-                 ZipInputStream zis = new ZipInputStream(fis)) {
+        try (FileInputStream fis = new FileInputStream(new File(filePath));
+             ZipInputStream zis = new ZipInputStream(fis)) {
 
-                System.out.println("Processing dataset " + (i + 1) + " of " + dataList.size());
-                System.out.println("DOCX file contents:");
+            System.out.println("Processing all datasets in a single document");
+            System.out.println("DOCX file contents:");
 
-                ZipEntry entry;
-                String modifiedXml = null;
-                while ((entry = zis.getNextEntry()) != null) {
-                    // Look for the main document content
-                    if (entry.getName().equals("word/document.xml")) {
-                        // Read the XML content
-                        String xmlContent = readInputStream(zis);
+            ZipEntry entry;
+            String originalXml = null;
+            while ((entry = zis.getNextEntry()) != null) {
+                // Look for the main document content
+                if (entry.getName().equals("word/document.xml")) {
+                    // Read the XML content
+                    originalXml = readInputStream(zis);
 
-                        // Extract text from XML and replace placeholders
-                        modifiedXml = xmlContent;
-                        List<String> textLines = extractTextFromXml(xmlContent);
+                    // Extract text from XML
+                    List<String> textLines = extractTextFromXml(originalXml);
 
-                        // Print all lines
-                        for (String line : textLines) {
-                            System.out.println(line);
+                    // Print all lines
+                    for (String line : textLines) {
+                        System.out.println(line);
+                    }
+                }
+            }
+
+            // Process all datasets and create a single document
+            if (originalXml != null) {
+                String modifiedXml = originalXml;
+                Map<String, String> allReplacedValues = new LinkedHashMap<>();
+
+                // Process each dataset in the dataList
+                for (int i = 0; i < dataList.size(); i++) {
+                    System.out.println("Processing dataset " + (i + 1) + " of " + dataList.size());
+
+                    // Create a map to collect replaced values for this dataset
+                    Map<String, String> datasetReplacedValues = new LinkedHashMap<>();
+
+                    // Find and replace variable placeholders for the current dataset
+                    modifiedXml = replacePlaceholders(modifiedXml, dataList.get(i), i, datasetReplacedValues);
+
+                    // Add dataset number prefix to keys to avoid overwriting values from different datasets
+                    for (Map.Entry<String, String> mapEntry : datasetReplacedValues.entrySet()) {
+                        allReplacedValues.put("Dataset " + (i + 1) + " - " + mapEntry.getKey(), mapEntry.getValue());
+                    }
+
+                    // Print the modified XML content
+                    System.out.println("\nModified XML content after dataset " + (i + 1) + ":");
+                    System.out.println(modifiedXml);
+
+                    // If this is not the last dataset, we need to duplicate the template for the next dataset
+                    if (i < dataList.size() - 1) {
+                        // Find the end of the document body to insert a vertical spacing and duplicate the template
+                        int bodyEndPos = modifiedXml.lastIndexOf("</w:body>");
+                        if (bodyEndPos != -1) {
+                            // Insert a paragraph break instead of a page break to stack labels vertically
+                            String paragraphBreak = "<w:p><w:r><w:t xml:space=\"preserve\">&#10;</w:t></w:r></w:p>";
+                            String beforeBodyEnd = modifiedXml.substring(0, bodyEndPos);
+                            String afterBodyEnd = modifiedXml.substring(bodyEndPos);
+
+                            // Get the original template content (we'll use the original XML for the next dataset)
+                            modifiedXml = beforeBodyEnd + paragraphBreak + originalXml.substring(
+                                originalXml.indexOf("<w:body>") + 8, 
+                                originalXml.lastIndexOf("</w:body>")
+                            ) + afterBodyEnd;
                         }
-
-                        // Find and replace variable placeholders for the current dataset
-                        modifiedXml = replacePlaceholders(xmlContent, dataList.get(i), i);
-
-                        // Print the modified XML content
-                        System.out.println("\nModified XML content for dataset " + (i + 1) + ":");
-                        System.out.println(modifiedXml);
                     }
                 }
 
-                // Create a DOCX file with the replaced placeholders for the current dataset
-                if (modifiedXml != null) {
-                    createDocxFile(filePath, modifiedXml, i);
-                }
+                // Export all replaced values to a single TXT file
+                exportReplacedValuesToTxt(allReplacedValues, -1);
+
+                // Create a single DOCX file with all datasets
+                createDocxFile(filePath, modifiedXml, -1);
             }
         }
     }
@@ -220,11 +254,12 @@ public class Main {
      * @param xmlContent The original XML content
      * @param input      Map containing key-value pairs for placeholder replacement
      * @param index      Index of the dataset being processed
+     * @param outReplacedValues Optional map to collect replaced values (if null, values are exported to a file)
      * @return The modified XML content with placeholders replaced
      */
-    private static String replacePlaceholders(String xmlContent, Map<String, String> input, int index) {
+    private static String replacePlaceholders(String xmlContent, Map<String, String> input, int index, Map<String, String> outReplacedValues) {
         String modifiedXml = xmlContent;
-        Map<String, String> replacedValues = new LinkedHashMap<>();
+        Map<String, String> replacedValues = outReplacedValues != null ? outReplacedValues : new LinkedHashMap<>();
 
         // Process the XML content to find and replace placeholders
         int pos = 0;
@@ -307,8 +342,10 @@ public class Main {
             pos = contentEnd + 6; // Length of "</w:t>"
         }
 
-        // Export the replaced values to a TXT file
-        exportReplacedValuesToTxt(replacedValues, index);
+        // Export the replaced values to a TXT file only if outReplacedValues is null
+        if (outReplacedValues == null) {
+            exportReplacedValuesToTxt(replacedValues, index);
+        }
 
         return modifiedXml;
     }
@@ -330,8 +367,15 @@ public class Main {
                 srcDir.mkdir();
             }
 
-            // Create the file path with a unique name based on the index
-            String filePath = currentDir + "\\src\\replaced_values_" + (index + 1) + ".txt";
+            // Create the file path
+            String filePath;
+            if (index == -1) {
+                // If index is -1, it means we're creating a single file with all datasets
+                filePath = currentDir + "\\src\\replaced_values_all.txt";
+            } else {
+                // Otherwise, create a file with a unique name based on the index
+                filePath = currentDir + "\\src\\replaced_values_" + (index + 1) + ".txt";
+            }
 
             // Write the replaced values to the file
             try (FileWriter writer = new FileWriter(filePath);
@@ -372,8 +416,15 @@ public class Main {
             srcDir.mkdir();
         }
 
-        // Create the output file path with a unique name based on the index
-        String outputFilePath = currentDir + "\\src\\output_" + (index + 1) + ".docx";
+        // Create the output file path
+        String outputFilePath;
+        if (index == -1) {
+            // If index is -1, it means we're creating a single file with all datasets
+            outputFilePath = currentDir + "\\src\\output_all.docx";
+        } else {
+            // Otherwise, create a file with a unique name based on the index
+            outputFilePath = currentDir + "\\src\\output_" + (index + 1) + ".docx";
+        }
 
         try (FileInputStream fis = new FileInputStream(new File(originalFilePath));
              ZipInputStream zis = new ZipInputStream(fis);
