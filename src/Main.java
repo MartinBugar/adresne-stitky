@@ -14,6 +14,11 @@ import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import org.w3c.dom.Document;
+import org.xml.sax.SAXException;
 
 /**
  * Main application class for processing DOCX files and replacing placeholders with actual values.
@@ -42,6 +47,7 @@ public class Main {
         try {
             // Path to the input file (DOCX template)
             String filePath = "input\\file";
+            Document documentFromFilePath = createDocumentFromFilePath(filePath);
 
             // Create a list to hold all data records for processing
             List<Map<String, String>> dataList = new ArrayList<>();
@@ -432,5 +438,211 @@ public class Main {
         }
     }
 
+    /**
+     * Creates an org.w3c.dom.Document from a file path.
+     * This method reads the file at the given path and parses it into a DOM Document.
+     * It handles different file types including XML files and DOCX files (which are ZIP archives containing XML).
+     * It also handles potential BOM (Byte Order Mark), malformed XML tags, or other non-XML content.
+     *
+     * @param filePath The path to the file
+     * @return The parsed DOM Document
+     * @throws ParserConfigurationException If there's an error creating the DocumentBuilder
+     * @throws SAXException If there's an error parsing the XML
+     * @throws IOException If there's an error reading the file
+     */
+    public static Document createDocumentFromFilePath(String filePath) throws ParserConfigurationException, SAXException, IOException {
+        // Create a DocumentBuilderFactory
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
 
+        // Create a DocumentBuilder
+        DocumentBuilder builder = factory.newDocumentBuilder();
+
+        // Read the file content
+        File file = new File(filePath);
+        String content = null;
+
+        // Check if the file is a DOCX file (which is a ZIP archive)
+        if (filePath.toLowerCase().endsWith(".docx") || isZipFile(file)) {
+            // Extract the document.xml from the DOCX file
+            try (FileInputStream fis = new FileInputStream(file);
+                 ZipInputStream zis = new ZipInputStream(fis)) {
+
+                ZipEntry entry;
+                while ((entry = zis.getNextEntry()) != null) {
+                    if (entry.getName().equals("word/document.xml")) {
+                        // Found the main document XML content
+                        content = readInputStream(zis);
+                        break;
+                    }
+                }
+
+                if (content == null) {
+                    throw new IOException("Could not find word/document.xml in the DOCX file");
+                }
+            }
+        } else {
+            // Handle as a regular file
+            try {
+                // First try the standard way
+                Document document = builder.parse(file);
+                document.getDocumentElement().normalize();
+                return document;
+            } catch (SAXException e) {
+                // Read the file into a string for further processing
+                try (FileInputStream fis = new FileInputStream(file)) {
+                    byte[] bytes = new byte[(int) file.length()];
+                    fis.read(bytes);
+                    content = new String(bytes, StandardCharsets.UTF_8);
+                }
+            }
+        }
+
+        // Process the content string
+        if (content != null) {
+            // Find the start of the XML content (skip BOM or other non-XML content)
+            int xmlStart = content.indexOf("<?xml");
+            if (xmlStart == -1) {
+                xmlStart = content.indexOf("<");
+            }
+
+            if (xmlStart > 0) {
+                // Remove content before the XML declaration
+                content = content.substring(xmlStart);
+            }
+
+            // Check if the content is actually XML
+            if (!content.trim().startsWith("<?xml") && !content.trim().startsWith("<")) {
+                throw new SAXException("Not a valid XML content");
+            }
+
+            // Ensure proper XML prolog if needed
+            if (!content.trim().startsWith("<?xml")) {
+                // If there's no XML declaration but content starts with a tag,
+                // add a proper XML declaration
+                content = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" + content;
+            }
+
+            // Fix common XML issues
+            content = fixMalformedXml(content);
+
+            try {
+                // Try to parse the cleaned content
+                Document document = builder.parse(new org.xml.sax.InputSource(
+                        new java.io.StringReader(content)));
+                document.getDocumentElement().normalize();
+                return document;
+            } catch (SAXException innerEx) {
+                // If still failing, try more aggressive cleaning
+                content = removeProblematicTags(content);
+                Document document = builder.parse(new org.xml.sax.InputSource(
+                        new java.io.StringReader(content)));
+                document.getDocumentElement().normalize();
+                return document;
+            }
+        }
+
+        throw new SAXException("Failed to parse file as XML: " + filePath);
+    }
+
+    /**
+     * Checks if a file is a ZIP archive.
+     * 
+     * @param file The file to check
+     * @return true if the file is a ZIP archive, false otherwise
+     */
+    private static boolean isZipFile(File file) {
+        try (FileInputStream fis = new FileInputStream(file)) {
+            byte[] signature = new byte[4];
+            if (fis.read(signature) != 4) {
+                return false;
+            }
+            // ZIP file signature: 50 4B 03 04
+            return signature[0] == 0x50 && signature[1] == 0x4B && 
+                   signature[2] == 0x03 && signature[3] == 0x04;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    /**
+     * Fixes common malformed XML issues, particularly focusing on unclosed tags
+     * and invalid characters.
+     * This method addresses issues with malformed tags and removes invalid XML characters.
+     *
+     * @param content The XML content to fix
+     * @return The fixed XML content
+     */
+    private static String fixMalformedXml(String content) {
+        // Remove invalid XML characters (including Unicode control characters)
+        StringBuilder cleanContent = new StringBuilder();
+        for (int i = 0; i < content.length(); i++) {
+            char c = content.charAt(i);
+            // XML 1.0 allows only these characters:
+            // #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]
+            if (c == 0x9 || c == 0xA || c == 0xD || (c >= 0x20 && c <= 0xD7FF) ||
+                (c >= 0xE000 && c <= 0xFFFD)) {
+                cleanContent.append(c);
+            }
+            // Skip any other characters (including Unicode 0x10 mentioned in the error)
+        }
+        content = cleanContent.toString();
+
+        // Fix malformed <u> tags (ensure they have proper closing)
+        content = content.replaceAll("<u(?![>\\s/])", "<u>");
+        content = content.replaceAll("<u\\s+(?!>|/|\\w+=)", "<u>");
+
+        // Ensure all opening <u> tags have corresponding closing tags
+        int openCount = countOccurrences(content, "<u>");
+        int closeCount = countOccurrences(content, "</u>");
+
+        if (openCount > closeCount) {
+            // Add missing closing tags
+            StringBuilder sb = new StringBuilder(content);
+            for (int i = 0; i < openCount - closeCount; i++) {
+                sb.append("</u>");
+            }
+            content = sb.toString();
+        }
+
+        return content;
+    }
+
+    /**
+     * Removes problematic XML tags that might be causing parsing errors.
+     * This is a more aggressive approach when other fixes fail.
+     *
+     * @param content The XML content to clean
+     * @return The cleaned XML content
+     */
+    private static String removeProblematicTags(String content) {
+        // Remove problematic <u> tags completely
+        content = content.replaceAll("<u[^>]*>", "");
+        content = content.replaceAll("</u>", "");
+
+        // Remove other potentially problematic inline formatting tags
+        String[] problematicTags = {"b", "i", "em", "strong"};
+        for (String tag : problematicTags) {
+            content = content.replaceAll("<" + tag + "[^>]*>", "");
+            content = content.replaceAll("</" + tag + ">", "");
+        }
+
+        return content;
+    }
+
+    /**
+     * Counts the number of occurrences of a substring within a string.
+     *
+     * @param content The string to search in
+     * @param substring The substring to count
+     * @return The number of occurrences
+     */
+    private static int countOccurrences(String content, String substring) {
+        int count = 0;
+        int index = 0;
+        while ((index = content.indexOf(substring, index)) != -1) {
+            count++;
+            index += substring.length();
+        }
+        return count;
+    }
 }
