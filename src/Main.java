@@ -1,4 +1,5 @@
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -81,8 +82,19 @@ public class Main {
             dataList.add(rec2);
             dataList.add(rec3);
 
-            // Read the DOCX file, replace placeholders, and export to XML file
-            readDocxFile(filePath, dataList);
+            // Read the DOCX file, replace placeholders, and get the DocumentAssemblerResponse
+            DocumentAssemblerResponse response = readDocxFile(filePath, dataList);
+
+            // You can use the response object here if needed
+            if (response.templateError) {
+                System.out.println("Error: Template processing failed");
+            } else {
+                System.out.println("Document processed successfully");
+                // Access the document bytes if needed
+                // byte[] docBytes = response.wmlDocument.DocumentByteArray();
+                // Save the response.wmlDocument to outputFinal.docx
+                saveResponseWmlDocument(response.wmlDocument);
+            }
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -109,14 +121,15 @@ public class Main {
     }
 
     /**
-     * Reads a DOCX file, replaces placeholders with values from the dataList, and creates a new DOCX file
-     * with the replaced content. This method handles the core document processing logic.
+     * Reads a DOCX file, replaces placeholders with values from the dataList, and returns a DocumentAssemblerResponse
+     * object containing the processed document. This method handles the core document processing logic.
      *
      * @param filePath Path to the DOCX file (template)
      * @param dataList List of maps containing key-value pairs for placeholder replacement
+     * @return DocumentAssemblerResponse containing the processed document
      * @throws IOException If there's an error reading or writing files
      */
-    private static void readDocxFile(String filePath, List<Map<String, String>> dataList) throws IOException {
+    private static DocumentAssemblerResponse readDocxFile(String filePath, List<Map<String, String>> dataList) throws IOException {
         try (FileInputStream fis = new FileInputStream(new File(filePath));
              ZipInputStream zis = new ZipInputStream(fis)) {
 
@@ -129,6 +142,10 @@ public class Main {
                     originalXml = readInputStream(zis);
                 }
             }
+
+            // Create a DocumentAssemblerResponse object to return
+            DocumentAssemblerResponse response = new DocumentAssemblerResponse();
+            response.templateError = false; // Default to no error
 
             if (originalXml != null) {
                 // Remove control tags from the template
@@ -160,9 +177,23 @@ public class Main {
                     }
                 }
 
-                // Create the output DOCX file with all processed records
-                createDocxFile(filePath, removeXmlTags(modifiedXml));
+                // Create the output DOCX file with all processed records and get the byte array
+                byte[] docxData = createDocxFile(filePath, removeXmlTags(modifiedXml));
+
+                // File saving removed as per requirements
+
+                // Create a WmlDocument and set the byte array
+                WmlDocument wmlDoc = new WmlDocument(null, null);
+                wmlDoc.setByteArray(docxData);
+
+                // Set the WmlDocument in the response
+                response.wmlDocument = wmlDoc;
+            } else {
+                // If we couldn't find the document.xml, set templateError to true
+                response.templateError = true;
             }
+
+            return response;
         }
     }
 
@@ -292,32 +323,21 @@ public class Main {
 
 
     /**
-     * Creates a new DOCX file with the replaced placeholders.
+     * Creates a new DOCX file with the replaced placeholders and returns it as a byte array.
      * This method takes the original DOCX file as a template, replaces the document.xml
-     * content with the modified XML, and creates a new DOCX file with the changes.
+     * content with the modified XML, and returns the resulting DOCX file as a byte array.
      *
      * @param originalFilePath Path to the original DOCX template file
      * @param modifiedXml The modified XML content with placeholders replaced by actual values
+     * @return The byte array containing the generated DOCX file
      * @throws IOException If there's an error reading the original file or writing the new file
      */
-    private static void createDocxFile(String originalFilePath, String modifiedXml) throws IOException {
-        // Get the current working directory
-        String currentDir = System.getProperty("user.dir");
-        // Ensure the src directory exists
-        File srcDir = new File(currentDir, "src");
-        if (!srcDir.exists()) {
-            srcDir.mkdir();
-        }
-
-        // Generate the output filename
-        String fileName = "output_all.docx";
-        File outputFile = new File(srcDir, fileName);
-
-        // Open streams for reading the original file and writing the new file
-        try (FileInputStream fis = new FileInputStream(new File(originalFilePath));
-             ZipInputStream zis = new ZipInputStream(fis);
-             FileOutputStream fos = new FileOutputStream(outputFile);
-             ZipOutputStream zos = new ZipOutputStream(fos)) {
+    private static byte[] createDocxFile(String originalFilePath, String modifiedXml) throws IOException {
+        // Create an in-memory output stream to hold the DOCX data
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+             ZipOutputStream zos = new ZipOutputStream(baos);
+             FileInputStream fis = new FileInputStream(new File(originalFilePath));
+             ZipInputStream zis = new ZipInputStream(fis)) {
 
             ZipEntry entry;
             byte[] buffer = new byte[1024];
@@ -343,8 +363,73 @@ public class Main {
                 zos.closeEntry();
                 zis.closeEntry();
             }
+
+            // Close the ZipOutputStream to ensure all data is written
+            zos.close();
+
+            // Get the byte array from the ByteArrayOutputStream
+            return baos.toByteArray();
         }
         // Resources are automatically closed by try-with-resources
+    }
+
+
+    /**
+     * Creates a new DOCX file on disk from the WmlDocument.
+     * This method saves the WmlDocument data to a file named "outputFinal.docx".
+     *
+     * @param wmlDocument The WmlDocument containing the DOCX file data
+     * @throws IOException If there's an error writing the file
+     */
+    private static void saveResponseWmlDocument(WmlDocument wmlDocument) throws IOException {
+        if (wmlDocument == null) {
+            System.out.println("Error: WmlDocument is null");
+            return;
+        }
+
+        // Get the byte array from the WmlDocument
+        byte[] docxData = wmlDocument.DocumentByteArray();
+
+        // Get the current working directory
+        String currentDir = System.getProperty("user.dir");
+        // Ensure the src directory exists
+        File srcDir = new File(currentDir, "src");
+        if (!srcDir.exists()) {
+            srcDir.mkdir();
+        }
+
+        // Generate the output filename
+        String fileName = "outputFinal.docx";
+        File outputFile = new File(srcDir, fileName);
+
+        // Write the byte array to the file
+        try (FileOutputStream fos = new FileOutputStream(outputFile)) {
+            fos.write(docxData);
+        }
+
+        System.out.println("File saved successfully: " + outputFile.getAbsolutePath());
+    }
+
+    public static class DocumentAssemblerResponse {
+        public WmlDocument wmlDocument;
+        // out Boolean templateError
+        public Boolean templateError;
+    }
+
+    // TODO konv toto je docasne, kym zistime, na co to vlastne je
+    public static class WmlDocument {
+        private byte[] data = new byte[0];
+        public WmlDocument(Object a, Object b) {
+
+        }
+
+        public void setByteArray(byte[] new_data) {
+            data = new_data;
+        }
+
+        public byte[] DocumentByteArray() {
+            return data;
+        }
     }
 
 
