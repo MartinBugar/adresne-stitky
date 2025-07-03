@@ -48,6 +48,45 @@ public class Main {
     }
 
     /**
+     * Converts keys from "Labels.adresnyStitokVyzvaViewXXX" format to "XXX" format.
+     * For example, "Labels.adresnyStitokVyzvaViewvs" becomes "VS".
+     * 
+     * @param originalMap Map with keys in "Labels.adresnyStitokVyzvaViewXXX" format
+     * @return New map with converted keys
+     */
+    private static Map<String, String> convertKeys(Map<String, String> originalMap) {
+        Map<String, String> convertedMap = new HashMap<>();
+
+        for (Map.Entry<String, String> entry : originalMap.entrySet()) {
+            String key = entry.getKey();
+            String value = entry.getValue();
+
+            // Check if the key starts with the prefix we want to convert
+            if (key.startsWith("Labels.adresnyStitokVyzvaView")) {
+                // Extract the part after "Labels.adresnyStitokVyzvaView"
+                String newKey = key.substring("Labels.adresnyStitokVyzvaView".length());
+
+                // Special case for "vs" - convert to "VS"
+                if (newKey.equals("vs")) {
+                    newKey = "VS";
+                } 
+                // For other keys, convert the first character to uppercase
+                else if (!newKey.isEmpty()) {
+                    newKey = newKey.substring(0, 1).toUpperCase() + newKey.substring(1);
+                }
+
+                // Add the converted key and value to the new map
+                convertedMap.put(newKey, value);
+            } else {
+                // Keep keys that don't need conversion as they are
+                convertedMap.put(key, value);
+            }
+        }
+
+        return convertedMap;
+    }
+
+    /**
      * Creates sample data records for testing the label generation.
      * 
      * @return List of maps containing sample data records
@@ -59,13 +98,16 @@ public class Main {
         // Sample record 1 - Each key corresponds to a placeholder in the template
         // Keys match the variable names in the XML placeholders: <Content Select="./KEY"/>
         Map<String,String> rec1 = new HashMap<>();
-        rec1.put("Label",       "ID-12345");     // Identifier label
-        rec1.put("VS",          "2025");         // Variable symbol
-        rec1.put("Oslovenie",   "Vážený pán Novák,"); // Salutation
-        rec1.put("Adresat",     "Ján Novák");    // Recipient name
-        rec1.put("AdresnyRiadok1", "Hlavná 10"); // Address line 1
-        rec1.put("AdresnyRiadok2", "010 01 Žilina"); // Address line 2 (postal code and city)
-        rec1.put("Stat",        "Slovensko");    // Country
+        rec1.put("Label",       "Label");     // Identifier label
+        rec1.put("Labels.adresnyStitokVyzvaViewvs",          "VS");         // VS
+        rec1.put("Labels.adresnyStitokVyzvaViewoslovenie",   "Oslovenie,"); // Oslovenie
+        rec1.put("Labels.adresnyStitokVyzvaViewadresat",     "Pekáreň Irma, s.r.o.");    // Adresat
+        rec1.put("Labels.adresnyStitokVyzvaViewadresnyRiadok1", "Ábelová 15"); // AdresnyRiadok1
+        rec1.put("Labels.adresnyStitokVyzvaViewadresnyRiadok2", "90210 Pezinok 1"); // AdresnyRiadok2
+        rec1.put("Labels.adresnyStitokVyzvaViewstat",        "Slovenská Republika");    // Stat
+
+        // Convert rec1 keys from "Labels.adresnyStitokVyzvaViewXXX" to "XXX" format
+        Map<String,String> convertedRec1 = convertKeys(rec1);
 
         // Sample record 2
         Map<String,String> rec2 = new HashMap<>();
@@ -88,7 +130,7 @@ public class Main {
         rec3.put("Stat",        "Madarsko");
 
         // Add all records to the data list for processing
-        dataList.add(rec1);
+        dataList.add(convertedRec1); // Use the converted map instead of rec1
         dataList.add(rec2);
         dataList.add(rec3);
 
